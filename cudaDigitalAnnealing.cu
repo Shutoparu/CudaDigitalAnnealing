@@ -21,7 +21,7 @@ void checkCudaError() {
  * @param size size of the array
  * @return the index of a random non-zero value from the array
  */
-int randChoose(double* arr, int size) {
+int randChoose(double* arr, int size) { //TODO might consume too much time 
     int index = rand() % size;
 
     while (arr[index] == 0) {
@@ -214,7 +214,7 @@ void digitalAnnealing(int* b, double* Q, double* energy, int dim, int sweeps) {
 
     for (int n = 0; n < sweeps; n++) {
 
-        slipBinary << < blocks, threads >> > (b_copy, Q_copy, dim, offset, beta[n], stat, rand() / (double)RAND_MAX);
+        slipBinary << < blocks, threads >> > (b_copy, Q_copy, dim, offset, beta[n], stat, rand() / (double)RAND_MAX); // TODO random function in device?
         cudaDeviceSynchronize();
         cudaMemcpy(stat_host, stat, 2 * dim * sizeof(double), cudaMemcpyDeviceToHost);
 
