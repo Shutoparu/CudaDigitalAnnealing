@@ -274,11 +274,11 @@ void digitalAnnealing(int* b, double* Q, int dim, double* energy, int sweeps) {
 
 int main() {
 
-    srand(1);
+    int dim = 1500;
 
     // create a random 40 * 40 array Q
     // create an inital state([1]) bit array b
-    int dim = 1500;
+    srand(1);
     double* Q;
     int* b;
     cudaMallocHost(&Q, dim * dim * sizeof(double));
@@ -296,24 +296,23 @@ int main() {
     double* energy;
     cudaMallocHost(&energy, sweeps * sizeof(double));
 
-    clock_t begin = clock();
     digitalAnnealing(b, Q, dim, energy, sweeps);
-    clock_t end = clock();
 
-
-
-    double time = (double)(end - begin) / CLOCKS_PER_SEC;
-
-    printf("time=%.5f sec\n", time);
-
+    
     int stride = 10000;
-    for (int i = 0; i < sweeps / stride; i++) {
-        printf("i=%d --> e=%.5f\n", i * stride, energy[i * stride]);
+    for(int i=0; i<sweeps/stride; i++){
+        printf("i=%d --> e=%.5f\n", i*stride, energy[i*stride]);
     }
-    printf("min energy: %.5f\n", min(energy, sweeps));
 
     cudaFree(Q);
     cudaFree(b);
     cudaFree(energy);
     return 0;
+}
+extern "C"{
+int pythonEntry(){
+
+    printf("hello");
+return 0;
+}
 }
