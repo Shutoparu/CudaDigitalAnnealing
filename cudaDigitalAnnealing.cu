@@ -15,13 +15,13 @@ void checkCudaError() {
 }
 
 
- /**
- * @brief sum up the given aray
- *
- * @param arr input array
- * @param size the size of the array
- * @return the sum of the array
- */
+/**
+* @brief sum up the given aray
+*
+* @param arr input array
+* @param size the size of the array
+* @return the sum of the array
+*/
 double sum(double* arr, int size) {
     double sum = 0;
     for (int i = 0; i < size; i++) {
@@ -37,19 +37,19 @@ double sum(double* arr, int size) {
  * @return the index of a random non-zero value from the array
  */
 int randChoose(double* arr, int size) { //TODO might consume too much time TODO done 
-    
-    int nonZeroNum = (int)sum(arr,size);
+
+    int nonZeroNum = (int)sum(arr, size);
 
     int* indicies;
     indicies = (int*)malloc(nonZeroNum * sizeof(int));
     int idx = 0;
-    for(int i=0; i<size; i++){
-        if(arr[i] != 0){
+    for (int i = 0; i < size; i++) {
+        if (arr[i] != 0) {
             indicies[idx] = i;
             idx++;
         }
     }
-    
+
     int index = rand() % nonZeroNum;
 
     return indicies[index];
@@ -122,13 +122,14 @@ __global__ void calculateEnergy(int* b, double* Q, double* tempArr, int dim) {
  * @param beta a factor to accept randomness
  * @param stat the array to be returned, include [0] acceptance and [1] energy change
  */
-__global__ void slipBinary(int* b_copy, double* Q, int dim, double offset, double beta, double* stat, double threshold) {
+__global__ void slipBinary(int* b_copy, double* Q, int dim, double offset, double beta, double* stat, double seed) {
 
     int i = threadIdx.x + blockIdx.x * blockDim.x;
     if (i < dim) {
         int flipped = 0;
-        //double rand = curand_uniform() 
-        
+        curandState state;
+        curand_init(seed,i,0,&state);
+
         // get energy change for flipping the bit [i] (check delta_E)
         if (b_copy[i] != 1) {
             flipped = 1;
@@ -137,9 +138,9 @@ __global__ void slipBinary(int* b_copy, double* Q, int dim, double offset, doubl
         stat[dim + i] = 0;
 
         for (int n = 0; n < dim; n++) {
-            if(flipped == 1 && n == i){
+            if (flipped == 1 && n == i) {
                 stat[dim + i] += Q[i * dim + n];
-            }else{
+            } else {
                 stat[dim + i] += b_copy[n] * Q[i * dim + n];
             }
         }
@@ -154,7 +155,7 @@ __global__ void slipBinary(int* b_copy, double* Q, int dim, double offset, doubl
         double p = exp(-stat[dim + i] * beta);
         if (stat[dim + i] < 0) {
             stat[i] = 1;
-        } else if (p > threshold) {
+        } else if (p > curand_uniform_double(&state)) {
             stat[i] = 1;
         } else {
             stat[i] = 0;
@@ -247,8 +248,8 @@ void digitalAnnealing(int* b, double* Q, double* energy, int dim, int sweeps) {
         cudaMemcpy(b_copy, b, dim * sizeof(int), cudaMemcpyHostToDevice);
         calculateEnergy << <blocks, threads >> > (b_copy, Q_copy, tempArr, dim);
         cudaDeviceSynchronize();
-        cudaMemcpy(tempArr_Host, tempArr, dim*sizeof(double), cudaMemcpyDeviceToHost);
-        energy[n] = sum(tempArr_Host,dim);
+        cudaMemcpy(tempArr_Host, tempArr, dim * sizeof(double), cudaMemcpyDeviceToHost);
+        energy[n] = sum(tempArr_Host, dim);
     }
     free(beta);
     cudaFree(stat);
@@ -291,8 +292,8 @@ int main() {
     printf("time=%.5f sec\n", time);
 
     int stride = 10000;
-    for(int i=0; i<sweeps/stride; i++){
-        printf("i=%d --> e=%.5f\n", i*stride, energy[i*stride]);
+    for (int i = 0; i < sweeps / stride; i++) {
+        printf("i=%d --> e=%.5f\n", i * stride, energy[i * stride]);
     }
 
     cudaFree(Q);
