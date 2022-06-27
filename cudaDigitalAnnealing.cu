@@ -3,7 +3,6 @@
 #include <stdlib.h>
 #include <math.h>
 #include <curand_kernel.h>
-#include <curand.h>
 
 void checkCudaError() {
     cudaError_t err = cudaGetLastError();
@@ -66,7 +65,7 @@ int randChoose(double* arr, int size) { //TODO might consume too much time TODO 
 double min(double* arr, int size) {
     double min = arr[0];
     for (int i = 1; i < size; i++) {
-        if (arr[i] > min) {
+        if (arr[i] < min) {
             min = arr[i];
         }
     }
@@ -231,7 +230,7 @@ void digitalAnnealing(int* b, double* Q, double* energy, int dim, int sweeps) {
 
     for (int n = 0; n < sweeps; n++) {
 
-        slipBinary << < blocks, threads >> > (b_copy, Q_copy, dim, offset, beta[n], stat, rand() / (double)RAND_MAX); // TODO random function in device?
+        slipBinary << < blocks, threads >> > (b_copy, Q_copy, dim, offset, beta[n], stat, (double)rand()); // TODO random function in device? TODO done
         cudaDeviceSynchronize();
         cudaMemcpy(stat_host, stat, 2 * dim * sizeof(double), cudaMemcpyDeviceToHost);
 
@@ -277,17 +276,20 @@ int main() {
     for (int i = 0; i < dim * dim; i++) {
         Q[i] = rand() / ((double)(RAND_MAX - 1) / 2 + 1) - 1;
     }
+
+
+
     int sweeps = 100000;
     double* energy;
     cudaMallocHost(&energy, sweeps * sizeof(double));
-
 
     clock_t begin = clock();
     digitalAnnealing(b, Q, energy, dim, sweeps);
     clock_t end = clock();
 
-    double time = (double)(end - begin) / CLOCKS_PER_SEC;
 
+
+    double time = (double)(end - begin) / CLOCKS_PER_SEC;
 
     printf("time=%.5f sec\n", time);
 
@@ -295,6 +297,7 @@ int main() {
     for (int i = 0; i < sweeps / stride; i++) {
         printf("i=%d --> e=%.5f\n", i * stride, energy[i * stride]);
     }
+    printf("min energy: %.5f\n",min(energy,sweeps));
 
     cudaFree(Q);
     cudaFree(b);
