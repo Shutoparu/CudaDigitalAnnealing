@@ -4,6 +4,11 @@
 #include <math.h>
 #include <curand_kernel.h>
 
+
+/**
+ * @brief used to check if cuda code goes wrong
+ *
+ */
 void checkCudaError() {
     cudaError_t err = cudaGetLastError();
     if (err != cudaSuccess) {
@@ -35,23 +40,27 @@ double sum(double* arr, int size) {
  * @param size size of the array
  * @return the index of a random non-zero value from the array
  */
-int randChoose(double* arr, int size) { //TODO might consume too much time TODO done 
+int randChoose(double* arr, int size) {
 
-    int nonZeroNum = (int)sum(arr, size);
+    int nonZeroNum = 0;
 
     int* indicies;
-    indicies = (int*)malloc(nonZeroNum * sizeof(int));
+    indicies = (int*)malloc(size * sizeof(int));
+
     int idx = 0;
+
     for (int i = 0; i < size; i++) {
         if (arr[i] != 0) {
+            nonZeroNum += arr[i];
             indicies[idx] = i;
             idx++;
         }
     }
 
-    int index = rand() % nonZeroNum;
+    int index = indicies[rand() % nonZeroNu]m;
+    free(indicies);
 
-    return indicies[index];
+    return index;
 }
 
 
@@ -95,8 +104,8 @@ double dot(int* arr1, double* arr2, int dim) {
  *
  * @param b array representing binary
  * @param Q qubo matrix
+ * @param tempArr a temporary array to store the dot product of b^T * (Q*b)
  * @param dim dimention of the array and matrix
- * @return the calculated energy
  */
 __global__ void calculateEnergy(int* b, double* Q, double* tempArr, int dim) {
     int i = threadIdx.x + blockIdx.x * blockDim.x;
@@ -114,12 +123,13 @@ __global__ void calculateEnergy(int* b, double* Q, double* tempArr, int dim) {
 /**
  * @brief calculate the energy change per bit flip, record the result and return an array of the result
  *
- * @param b the binary array
+ * @param b_copy the binary array
  * @param Q the qubo matrix
  * @param dim the dimention of the matrix and array
- * @param offset offset if the result is not accepted
+ * @param offset constant to deduct if the result was not accepted in the previous round
  * @param beta a factor to accept randomness
  * @param stat the array to be returned, include [0] acceptance and [1] energy change
+ * @param seed a seed to create random double between (0,1] in kernel
  */
 __global__ void slipBinary(int* b_copy, double* Q, int dim, double offset, double beta, double* stat, double seed) {
 
@@ -127,7 +137,7 @@ __global__ void slipBinary(int* b_copy, double* Q, int dim, double offset, doubl
     if (i < dim) {
         int flipped = 0;
         curandState state;
-        curand_init(seed,i,0,&state);
+        curand_init(seed, i, 0, &state);
 
         // get energy change for flipping the bit [i] (check delta_E)
         if (b_copy[i] != 1) {
@@ -162,6 +172,7 @@ __global__ void slipBinary(int* b_copy, double* Q, int dim, double offset, doubl
     }
 }
 
+
 /**
  * @brief create the beta array
  *
@@ -181,16 +192,17 @@ void getAnnealingBeta(int betaStart, int betaStop, double* beta, int sweeps) {
     }
 }
 
+
 /**
  * @brief the function that runs the digital annealing algorithm
  *
  * @param b binary array
  * @param Q qubo matrix
- * @param energy energy matrix to be returned, will record energy after per flip
  * @param dim dimention of binary array and qubo matrix
+ * @param energy energy matrix to be returned, will record energy after per flip
  * @param sweeps number of iterations to be done
  */
-void digitalAnnealing(int* b, double* Q, double* energy, int dim, int sweeps) {
+void digitalAnnealing(int* b, double* Q, int dim, double* energy, int sweeps) {
 
     int blocks = 32 * 8;
     int threads = dim / blocks + 1;
@@ -259,6 +271,7 @@ void digitalAnnealing(int* b, double* Q, double* energy, int dim, int sweeps) {
     cudaFreeHost(tempArr_Host);
 }
 
+
 int main() {
 
     srand(1);
@@ -284,7 +297,7 @@ int main() {
     cudaMallocHost(&energy, sweeps * sizeof(double));
 
     clock_t begin = clock();
-    digitalAnnealing(b, Q, energy, dim, sweeps);
+    digitalAnnealing(b, Q, dim, energy, sweeps);
     clock_t end = clock();
 
 
@@ -297,7 +310,7 @@ int main() {
     for (int i = 0; i < sweeps / stride; i++) {
         printf("i=%d --> e=%.5f\n", i * stride, energy[i * stride]);
     }
-    printf("min energy: %.5f\n",min(energy,sweeps));
+    printf("min energy: %.5f\n", min(energy, sweeps));
 
     cudaFree(Q);
     cudaFree(b);
