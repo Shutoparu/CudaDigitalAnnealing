@@ -2,7 +2,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
-
+#include <curand_kernel.h>
+#include <curand.h>
 
 void checkCudaError() {
     cudaError_t err = cudaGetLastError();
@@ -14,20 +15,44 @@ void checkCudaError() {
 }
 
 
-/**
- * @brief randomly choose an index with non-zero value from the given array
+ /**
+ * @brief sum up the given aray
  *
  * @param arr input array
+ * @param size the size of the array
+ * @return the sum of the array
+ */
+double sum(double* arr, int size) {
+    double sum = 0;
+    for (int i = 0; i < size; i++) {
+        sum += arr[i];
+    }
+    return sum;
+}
+
+
+/**
+ * @param arr input binary array
  * @param size size of the array
  * @return the index of a random non-zero value from the array
  */
-int randChoose(double* arr, int size) { //TODO might consume too much time 
-    int index = rand() % size;
+int randChoose(double* arr, int size) { //TODO might consume too much time TODO done 
+    
+    int nonZeroNum = (int)sum(arr,size);
 
-    while (arr[index] == 0) {
-        index = rand() % size;
+    int* indicies;
+    indicies = (int*)malloc(nonZeroNum * sizeof(int));
+    int idx = 0;
+    for(int i=0; i<size; i++){
+        if(arr[i] != 0){
+            indicies[idx] = i;
+            idx++;
+        }
     }
-    return index;
+    
+    int index = rand() % nonZeroNum;
+
+    return indicies[index];
 }
 
 
@@ -46,22 +71,6 @@ double min(double* arr, int size) {
         }
     }
     return min;
-}
-
-
-/**
- * @brief sum up the given aray
- *
- * @param arr input array
- * @param size the size of the array
- * @return the sum of the array
- */
-double sum(double* arr, int size) {
-    double sum = 0;
-    for (int i = 0; i < size; i++) {
-        sum += arr[i];
-    }
-    return sum;
 }
 
 
@@ -116,18 +125,23 @@ __global__ void calculateEnergy(int* b, double* Q, double* tempArr, int dim) {
 __global__ void slipBinary(int* b_copy, double* Q, int dim, double offset, double beta, double* stat, double threshold) {
 
     int i = threadIdx.x + blockIdx.x * blockDim.x;
-    int flipped = 0;
     if (i < dim) {
+        int flipped = 0;
+        //double rand = curand_uniform() 
+        
         // get energy change for flipping the bit [i] (check delta_E)
         if (b_copy[i] != 1) {
-            b_copy[i] = 1;
             flipped = 1;
         }
 
         stat[dim + i] = 0;
 
         for (int n = 0; n < dim; n++) {
-            stat[dim + i] += b_copy[n] * Q[i * dim + n];
+            if(flipped == 1 && n == i){
+                stat[dim + i] += Q[i * dim + n];
+            }else{
+                stat[dim + i] += b_copy[n] * Q[i * dim + n];
+            }
         }
 
         if (flipped != 0) {
@@ -204,9 +218,11 @@ void digitalAnnealing(int* b, double* Q, double* energy, int dim, int sweeps) {
     cudaMalloc(&Q_copy, dim * dim * sizeof(double));
     cudaMemcpy(Q_copy, Q, dim * dim * sizeof(double), cudaMemcpyHostToDevice);
 
+    // for calculating energy
     double* tempArr;
     cudaMalloc(&tempArr, dim * sizeof(double));
 
+    // for calculating energy
     double* tempArr_Host;
     cudaMallocHost(&tempArr_Host, dim * sizeof(double));
 
@@ -227,6 +243,7 @@ void digitalAnnealing(int* b, double* Q, double* energy, int dim, int sweeps) {
             offset = 0;
         }
 
+        // calculate energy
         cudaMemcpy(b_copy, b, dim * sizeof(int), cudaMemcpyHostToDevice);
         calculateEnergy << <blocks, threads >> > (b_copy, Q_copy, tempArr, dim);
         cudaDeviceSynchronize();
@@ -272,6 +289,11 @@ int main() {
 
 
     printf("time=%.5f sec\n", time);
+
+    int stride = 10000;
+    for(int i=0; i<sweeps/stride; i++){
+        printf("i=%d --> e=%.5f\n", i*stride, energy[i*stride]);
+    }
 
     cudaFree(Q);
     cudaFree(b);
