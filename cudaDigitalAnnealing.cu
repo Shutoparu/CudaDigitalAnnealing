@@ -51,13 +51,13 @@ int randChoose(double* arr, int size) {
 
     for (int i = 0; i < size; i++) {
         if (arr[i] != 0) {
-            nonZeroNum += arr[i];
+            nonZeroNum ++;
             indicies[idx] = i;
             idx++;
         }
     }
 
-    int index = indicies[rand() % nonZeroNu]m;
+    int index = indicies[rand() % nonZeroNum];
     free(indicies);
 
     return index;
@@ -140,14 +140,14 @@ __global__ void slipBinary(int* b_copy, double* Q, int dim, double offset, doubl
         curand_init(seed, i, 0, &state);
 
         // get energy change for flipping the bit [i] (check delta_E)
-        if (b_copy[i] != 1) {
+        if (b_copy[i] == 0) {
             flipped = 1;
         }
 
         stat[dim + i] = 0;
 
         for (int n = 0; n < dim; n++) {
-            if (flipped == 1 && n == i) {
+            if (flipped == 1 && n == i) { // time consuming 10%
                 stat[dim + i] += Q[i * dim + n];
             } else {
                 stat[dim + i] += b_copy[n] * Q[i * dim + n];
