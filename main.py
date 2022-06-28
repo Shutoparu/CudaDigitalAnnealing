@@ -19,4 +19,10 @@ cudaDA = cdll.LoadLibrary("./lib/cudaDA.so")
 main = cudaDA.pythonEntry
 
 main.argtypes = [POINTER(c_int), POINTER(c_double), c_int, c_int]
-main(binary, qubo, dim, sweeps)
+main.restype = c_double
+energy = main(binary, qubo, dim, sweeps)
+
+binary = ctplib.as_array(binary)
+
+print(energy)
+print(binary)

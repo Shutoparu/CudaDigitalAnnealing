@@ -309,10 +309,10 @@ int main() {
 /////////////////////////////////////////////////////////////////////////
 
 extern "C" {
-    void pythonEntry(int* b, double* Q, int dim, int sweeps);
+    double pythonEntry(int* b, double* Q, int dim, int sweeps);
 }
 
-void pythonEntry(int* b, double* Q, int dim, int sweeps) {
+double pythonEntry(int* b, double* Q, int dim, int sweeps) {
 
 
     double* energy;
@@ -320,9 +320,13 @@ void pythonEntry(int* b, double* Q, int dim, int sweeps) {
 
     digitalAnnealing(b, Q, dim, energy, sweeps);
 
-    int stride = 10000;
-    for (int i = 0; i < sweeps / stride; i++) {
-        printf("i=%d --> e=%.5f\n", i * stride, energy[i * stride]);
-    }
+    //int stride = 1;
+    //for (int i = 0; i < sweeps / stride; i++) {
+    //   printf("i=%d --> e=%.5f\n", i * stride, energy[i * stride]);
+    //}
+
+    double e = energy[sweeps-1];
+
     cudaFreeHost(energy);
+    return e;
 }
