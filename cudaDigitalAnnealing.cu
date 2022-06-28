@@ -7,7 +7,6 @@
 
 /**
  * @brief used to check if cuda code goes wrong
- *
  */
 void checkCudaError() {
     cudaError_t err = cudaGetLastError();
@@ -47,13 +46,10 @@ int randChoose(double* arr, int size) {
     int* indicies;
     indicies = (int*)malloc(size * sizeof(int));
 
-    int idx = 0;
-
     for (int i = 0; i < size; i++) {
         if (arr[i] != 0) {
-            nonZeroNum ++;
-            indicies[idx] = i;
-            idx++;
+            indicies[nonZeroNum] = i;
+            nonZeroNum++;
         }
     }
 
@@ -116,7 +112,6 @@ __global__ void calculateEnergy(int* b, double* Q, double* tempArr, int dim) {
         }
         tempArr[i] = tempArr[i] * b[i];
     }
-
 }
 
 
@@ -238,11 +233,11 @@ void digitalAnnealing(int* b, double* Q, int dim, double* energy, int sweeps) {
     double* tempArr_Host;
     cudaMallocHost(&tempArr_Host, dim * sizeof(double));
 
-    cudaMemcpy(b_copy, b, dim * sizeof(int), cudaMemcpyHostToDevice);
-
     for (int n = 0; n < sweeps; n++) {
 
-        slipBinary << < blocks, threads >> > (b_copy, Q_copy, dim, offset, beta[n], stat, (double)rand()); // TODO random function in device? TODO done
+        cudaMemcpy(b_copy, b, dim * sizeof(int), cudaMemcpyHostToDevice);
+
+        slipBinary << < blocks, threads >> > (b_copy, Q_copy, dim, offset, beta[n], stat, (double)rand());
         cudaDeviceSynchronize();
         cudaMemcpy(stat_host, stat, 2 * dim * sizeof(double), cudaMemcpyDeviceToHost);
 
@@ -255,12 +250,14 @@ void digitalAnnealing(int* b, double* Q, int dim, double* energy, int sweeps) {
             offset = 0;
         }
 
-        // calculate energy
-        cudaMemcpy(b_copy, b, dim * sizeof(int), cudaMemcpyHostToDevice);
-        calculateEnergy << <blocks, threads >> > (b_copy, Q_copy, tempArr, dim);
-        cudaDeviceSynchronize();
-        cudaMemcpy(tempArr_Host, tempArr, dim * sizeof(double), cudaMemcpyDeviceToHost);
-        energy[n] = sum(tempArr_Host, dim);
+        // calculate energy ; only needed for testing
+        {
+            cudaMemcpy(b_copy, b, dim * sizeof(int), cudaMemcpyHostToDevice);
+            calculateEnergy << <blocks, threads >> > (b_copy, Q_copy, tempArr, dim);
+            cudaDeviceSynchronize();
+            cudaMemcpy(tempArr_Host, tempArr, dim * sizeof(double), cudaMemcpyDeviceToHost);
+            energy[n] = sum(tempArr_Host, dim);
+        }
     }
     free(beta);
     cudaFree(stat);
@@ -290,18 +287,15 @@ int main() {
         Q[i] = rand() / ((double)(RAND_MAX - 1) / 2 + 1) - 1;
     }
 
-
-
     int sweeps = 100;
     double* energy;
     cudaMallocHost(&energy, sweeps * sizeof(double));
 
     digitalAnnealing(b, Q, dim, energy, sweeps);
 
-    
     int stride = 10;
-    for(int i=0; i<sweeps/stride; i++){
-        printf("i=%d --> e=%.5f\n", i*stride, energy[i*stride]);
+    for (int i = 0; i < sweeps / stride; i++) {
+        printf("i=%d --> e=%.5f\n", i * stride, energy[i * stride]);
     }
 
     cudaFree(Q);
@@ -309,21 +303,26 @@ int main() {
     cudaFree(energy);
     return 0;
 }
-extern "C"{
+
+/////////////////////////////////////////////////////////////////////////
+/// Below is the code that Python code calls to execute the algorithm ///
+/////////////////////////////////////////////////////////////////////////
+
+extern "C" {
     void pythonEntry(int* b, double* Q, int dim, int sweeps);
 }
-void pythonEntry(int* b, double* Q, int dim, int sweeps){
 
-    
+void pythonEntry(int* b, double* Q, int dim, int sweeps) {
+
+
     double* energy;
     cudaMallocHost(&energy, sweeps * sizeof(double));
 
     digitalAnnealing(b, Q, dim, energy, sweeps);
 
-    
     int stride = 10000;
-    for(int i=0; i<sweeps/stride; i++){
-        printf("i=%d --> e=%.5f\n", i*stride, energy[i*stride]);
+    for (int i = 0; i < sweeps / stride; i++) {
+        printf("i=%d --> e=%.5f\n", i * stride, energy[i * stride]);
     }
     cudaFreeHost(energy);
 }
