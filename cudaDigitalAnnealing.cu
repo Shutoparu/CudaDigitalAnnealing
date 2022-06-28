@@ -292,14 +292,14 @@ int main() {
 
 
 
-    int sweeps = 100000;
+    int sweeps = 100;
     double* energy;
     cudaMallocHost(&energy, sweeps * sizeof(double));
 
     digitalAnnealing(b, Q, dim, energy, sweeps);
 
     
-    int stride = 10000;
+    int stride = 10;
     for(int i=0; i<sweeps/stride; i++){
         printf("i=%d --> e=%.5f\n", i*stride, energy[i*stride]);
     }
@@ -310,9 +310,20 @@ int main() {
     return 0;
 }
 extern "C"{
-int pythonEntry(){
-
-    printf("hello");
-return 0;
+    void pythonEntry(int* b, double* Q, int dim, int sweeps);
 }
+void pythonEntry(int* b, double* Q, int dim, int sweeps){
+
+    
+    double* energy;
+    cudaMallocHost(&energy, sweeps * sizeof(double));
+
+    digitalAnnealing(b, Q, dim, energy, sweeps);
+
+    
+    int stride = 10000;
+    for(int i=0; i<sweeps/stride; i++){
+        printf("i=%d --> e=%.5f\n", i*stride, energy[i*stride]);
+    }
+    cudaFreeHost(energy);
 }
