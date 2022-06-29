@@ -83,23 +83,6 @@ double min(double *arr, int size)
     return min;
 }
 
-/**
- * @brief calculate array dot product
- *
- * @param arr1 first input array
- * @param arr2 second input array
- * @param dim size of the array
- * @return the dot product of the two arrays
- */
-double dot(int *arr1, double *arr2, int dim)
-{
-    double sum = 0;
-    for (int i = 0; i < dim; i++)
-    {
-        sum += arr1[i] * arr2[i];
-    }
-    return sum;
-}
 
 /**
  * @brief calculate the energy with given qubo matrix and binary state
@@ -341,27 +324,7 @@ int main()
 
 extern "C"
 {
-    double pythonEntry(int *b, double *Q, int dim, int sweeps);
     double digitalAnnealingPy(int *b, double *Q, int dim, int sweeps);
-}
-
-double pythonEntry(int *b, double *Q, int dim, int sweeps)
-{
-
-    double *energy;
-    cudaMallocHost(&energy, sweeps * sizeof(double));
-
-    digitalAnnealing(b, Q, dim, energy, sweeps);
-
-    // int stride = 1;
-    // for (int i = 0; i < sweeps / stride; i++) {
-    //    printf("i=%d --> e=%.5f\n", i * stride, energy[i * stride]);
-    // }
-
-    double e = energy[sweeps - 1];
-
-    cudaFreeHost(energy);
-    return e;
 }
 
 /**
@@ -370,7 +333,6 @@ double pythonEntry(int *b, double *Q, int dim, int sweeps)
  * @param b binary array
  * @param Q qubo matrix
  * @param dim dimention of binary array and qubo matrix
- * @param energy energy matrix to be returned, will record energy after per flip
  * @param sweeps number of iterations to be done
  */
 double digitalAnnealingPy(int *b, double *Q, int dim, int sweeps)

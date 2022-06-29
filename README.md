@@ -2,6 +2,8 @@
 
 [Code Source](https://github.com/Shutoparu/CudaDigitalAnnealing.git)
 
+Overall time complexity: O(sweep*dim)
+
 ## C code
 
 This is the c prototype of the algorithm.
