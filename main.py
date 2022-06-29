@@ -7,7 +7,7 @@ import time
 np.random.seed(1)
 
 dim = 1500
-sweeps = 100000
+sweeps = 100
 qubo = 2*np.random.rand(dim*dim)-1
 binary = np.ones(dim, dtype=np.int32)
 

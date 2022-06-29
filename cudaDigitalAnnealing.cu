@@ -326,6 +326,75 @@ extern "C"
     double digitalAnnealingPy(int *b, double *Q, int dim, int sweeps);
 }
 
+const int STRIDE = 30;
+
+__global__ void slipBinaryPy(int *b_copy, double *Q, int dim, double offset, double beta, double *stat, double seed)
+{
+
+    int i = threadIdx.x + blockIdx.x * blockDim.x;
+    if (i < dim)
+    {
+        int flipped = 0;
+        double delta_E;
+        curandState state;
+        curand_init(seed, i, 0, &state);
+
+        // get energy change for flipping the bit [i] (check delta_E)
+        if (b_copy[i] == 0)
+        {
+            flipped = 1;
+        }
+
+        __shared__ int sb[STRIDE];
+
+        for (int a = 0; a < dim / STRIDE; a++)
+        {
+
+            sb[i % STRIDE] = b_copy[a * STRIDE + i % STRIDE];
+
+            __syncthreads();
+
+            for (int b = 0; b < STRIDE; b++)
+            {
+                if (a * STRIDE + b == i && flipped == 1)
+                {
+                    delta_E += Q[i * dim + a * STRIDE + b];
+                }
+                else
+                {
+                    delta_E += sb[b] * Q[i * dim + a * STRIDE + b];
+                }
+            }
+            __syncthreads();
+        }
+        __syncthreads();
+
+        if (flipped != 0)
+        {
+            delta_E = 2 * delta_E - offset;
+        }
+        else
+        {
+            delta_E = -2 * delta_E - offset;
+        }
+
+        // check energy or check % (check pass)
+        double p = exp(-delta_E * beta);
+        if (delta_E < 0)
+        {
+            stat[i] = 1;
+        }
+        else if (p > curand_uniform_double(&state))
+        {
+            stat[i] = 1;
+        }
+        else
+        {
+            stat[i] = 0;
+        }
+        stat[dim + i] = delta_E;
+    }
+}
 /**
  * @brief the function that runs the digital annealing algorithm
  *
@@ -345,7 +414,8 @@ double digitalAnnealingPy(int *b, double *Q, int dim, int sweeps)
     cudaDeviceProp prop;
     cudaGetDeviceProperties(&prop, device);
 
-    int threads = 4;
+    // int blocks = prop.multiProcessorCount * 4;
+    int threads = STRIDE;
     int blocks = dim / threads + 1;
 
     int betaStart = 1;
@@ -375,9 +445,8 @@ double digitalAnnealingPy(int *b, double *Q, int dim, int sweeps)
 
     for (int n = 0; n < sweeps; n++)
     {
-        
 
-        slipBinary<<<blocks, threads>>>(b_copy, Q_copy, dim, offset, beta[n], stat, (double)rand());
+        slipBinaryPy<<<blocks, threads>>>(b_copy, Q_copy, dim, offset, beta[n], stat, (double)rand());
         cudaDeviceSynchronize();
         cudaMemcpy(stat_host, stat, 2 * dim * sizeof(double), cudaMemcpyDeviceToHost);
 

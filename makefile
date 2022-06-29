@@ -1,6 +1,8 @@
 default: compileLib
+	echo ""
 	python3 main.py
-
+	echo ""
+	
 compileLib: cudaDigitalAnnealing.cu
 	nvcc --compiler-options -fPIC -shared -o ./lib/cudaDA.so cudaDigitalAnnealing.cu
 
