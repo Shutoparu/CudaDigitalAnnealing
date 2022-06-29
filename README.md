@@ -38,4 +38,8 @@ Used Python version: 3.6.9 64bit
 
 The code throws a qubo matrix and a state array into the cuda code and calculate the energy
 
+### result:
+
 Without calculating energy at each iteration, the code takes 35 seconds to finish 100,000 iterations
+
+![pyResult](./images/pyResult.png)
