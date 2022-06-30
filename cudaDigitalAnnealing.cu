@@ -418,6 +418,9 @@ float digitalAnnealingPy(int *b, float *Q, int dim, int sweeps)
         }
     }
 
+    cudaUnbindTexture(b_text);
+    cudaUnbindTexture(Q_text);
+    
     ////////////////////////////////////////////////
     // calculate energy ; only needed for testing //
     ////////////////////////////////////////////////
