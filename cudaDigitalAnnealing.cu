@@ -4,6 +4,9 @@
 #include <math.h>
 #include <curand_kernel.h>
 
+texture<int, 1, cudaReadModeElementType> b_text;
+texture<float, 1, cudaReadModeElementType> Q_text;
+
 /**
  * @brief used to check if cuda code goes wrong
  */
@@ -116,7 +119,7 @@ __global__ void calculateEnergy(int *b, float *Q, float *tempArr, int dim)
  * @param stat the array to be returned, include [0] acceptance and [1] energy change
  * @param seed a seed to create random float between (0,1] in kernel
  */
-__global__ void slipBinary(int *b_copy, float *Q, int dim, float offset, float beta, float *stat, float seed)
+__global__ void slipBinary(int dim, float offset, float beta, float *stat, float seed)
 {
 
     int i = threadIdx.x + blockIdx.x * blockDim.x;
@@ -128,7 +131,9 @@ __global__ void slipBinary(int *b_copy, float *Q, int dim, float offset, float b
         curand_init(seed, i, 0, &state);
 
         // get energy change for flipping the bit [i] (check delta_E)
-        if (b_copy[i] == 0)
+
+        // check flip
+        if (tex1Dfetch(b_text, i) == 0)
         {
             flipped = 1;
         }
@@ -137,11 +142,11 @@ __global__ void slipBinary(int *b_copy, float *Q, int dim, float offset, float b
         {
             if (n == i && flipped == 1)
             {
-                delta_E += Q[i * dim + n]; // time consuming
+                delta_E += tex1Dfetch(Q_text, i * dim + n); // time consuming
             }
             else
             {
-                delta_E += b_copy[n] * Q[i * dim + n]; // time consuming
+                delta_E += tex1Dfetch(b_text, n) * tex1Dfetch(Q_text, i * dim + n); // time consuming
             }
         }
 
@@ -238,12 +243,15 @@ void digitalAnnealing(int *b, float *Q, int dim, float *energy, int sweeps)
     float *tempArr_Host;
     cudaMallocHost(&tempArr_Host, dim * sizeof(float));
 
+    cudaBindTexture(0, b_text, b_copy);
+    cudaBindTexture(0, Q_text, Q_copy);
+
     for (int n = 0; n < sweeps; n++)
     {
 
         cudaMemcpy(b_copy, b, dim * sizeof(int), cudaMemcpyHostToDevice);
 
-        slipBinary<<<blocks, threads>>>(b_copy, Q_copy, dim, offset, beta[n], stat, (float)rand());
+        slipBinary<<<blocks, threads>>>(dim, offset, beta[n], stat, (float)rand());
         cudaDeviceSynchronize();
         cudaMemcpy(stat_host, stat, 2 * dim * sizeof(float), cudaMemcpyDeviceToHost);
 
@@ -268,6 +276,10 @@ void digitalAnnealing(int *b, float *Q, int dim, float *energy, int sweeps)
             energy[n] = sum(tempArr_Host, dim);
         }
     }
+
+    cudaUnbindTexture(b_text);
+    cudaUnbindTexture(Q_text);
+
     free(beta);
     cudaFree(stat);
     cudaFreeHost(stat_host);
@@ -280,9 +292,6 @@ void digitalAnnealing(int *b, float *Q, int dim, float *energy, int sweeps)
 /////////////////////////////////////////////////////////////////////////
 /// Below is the code that Python code calls to execute the algorithm ///
 /////////////////////////////////////////////////////////////////////////
-
-texture<int, 1, cudaReadModeElementType> b_text;
-texture<float, 1, cudaReadModeElementType> Q_text;
 
 extern "C"
 {
@@ -312,7 +321,7 @@ __global__ void slipBinaryPy(int dim, float offset, float beta, float *stat, flo
         {
             if (n == i && flipped == 1)
             {
-            delta_E += tex1Dfetch(Q_text, i * dim + n); // time consuming
+                delta_E += tex1Dfetch(Q_text, i * dim + n); // time consuming
             }
             else
             {
@@ -366,7 +375,7 @@ float digitalAnnealingPy(int *b, float *Q, int dim, int sweeps)
     cudaDeviceProp prop;
     cudaGetDeviceProperties(&prop, device);
 
-    int blocks = prop.multiProcessorCount * 4;
+    int blocks = 32 * 8;
     int threads = dim / blocks + 1;
 
     int betaStart = 1;
@@ -400,7 +409,7 @@ float digitalAnnealingPy(int *b, float *Q, int dim, int sweeps)
     for (int n = 0; n < sweeps; n++)
     {
 
-        slipBinaryPy<<<blocks, threads>>>(dim, offset, beta[n], stat, (float)rand());
+        slipBinary<<<blocks, threads>>>(dim, offset, beta[n], stat, (float)rand());
         cudaDeviceSynchronize();
         cudaMemcpy(stat_host, stat, 2 * dim * sizeof(float), cudaMemcpyDeviceToHost);
 
@@ -420,7 +429,7 @@ float digitalAnnealingPy(int *b, float *Q, int dim, int sweeps)
 
     cudaUnbindTexture(b_text);
     cudaUnbindTexture(Q_text);
-    
+
     ////////////////////////////////////////////////
     // calculate energy ; only needed for testing //
     ////////////////////////////////////////////////

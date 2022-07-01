@@ -8,7 +8,9 @@ np.random.seed(1)
 
 dim = 1500
 sweeps = 100000
-qubo = 2*np.random.random(dim*dim).astype(np.float32)-1
+qubo = 2 * np.random.rand(dim,dim).astype(np.float32) - 1
+qubo = (qubo + qubo.T) / 2 
+qubo = qubo.flatten()
 binary = np.ones(dim, dtype=np.int32)
 
 binary = ctplib.as_ctypes(binary)
