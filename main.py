@@ -6,7 +6,7 @@ import time
 
 np.random.seed(1)
 
-dim = 1500
+dim = 1050
 sweeps = 100000
 qubo = 2 * np.random.rand(dim,dim).astype(np.float32) - 1
 qubo = (qubo + qubo.T) / 2 
