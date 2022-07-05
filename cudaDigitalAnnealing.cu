@@ -375,12 +375,14 @@ float digitalAnnealingPy(int *b, float *Q, int dim, int sweeps)
     cudaDeviceProp prop;
     cudaGetDeviceProperties(&prop, device);
 
+    // printf("%d\n", prop.regsPerBlock); // 65536
+
     int blocks = 32 * 8;
     int threads = dim / blocks + 1;
 
     int betaStart = 1;
     int betaStop = 50;
-
+    
     float *beta;
     beta = (float *)malloc(sweeps * sizeof(float));
     getAnnealingBeta(betaStart, betaStop, beta, sweeps);
