@@ -1,4 +1,3 @@
-import os
 import numpy as np
 import numpy.ctypeslib as ctplib
 from ctypes import c_float, c_int, cdll, POINTER
