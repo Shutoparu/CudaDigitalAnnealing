@@ -12,6 +12,14 @@ qubo = (qubo + qubo.T) / 2
 qubo = qubo.flatten()
 binary = np.ones(dim, dtype=np.int32)
 
+# # test code
+# dim = 5
+# sweeps=10000
+# qubo = np.array([[-.1,.2,-.3,.4,-.5],[.2,.3,-.4,.5,.6],[-.3,-.4,-.5,-.6,-.7],[.4,.5,-.6,.7,.8],[-.5,.6,-.7,.8,-.9]]).astype(np.float32)
+# # qubo = qubo.flatten()
+# binary = np.array([-1,-1,1,-1,-1])
+# # test code
+
 binary = ctplib.as_ctypes(binary)
 qubo = ctplib.as_ctypes(qubo)
 
@@ -31,3 +39,8 @@ binary = ctplib.as_array(binary)
 print(energy)
 print(binary)
 print("spent time: ", end-start)
+
+# # test code
+# binary = np.expand_dims(binary, axis=1)
+# print( - binary.T @ qubo @ binary)
+# # test code
