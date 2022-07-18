@@ -465,6 +465,7 @@ if __name__ == '__main__':
 
     # #### write qubo matrix as txt ####
     # file = "/Users/musktang/pycharm_project/mobile-load-balancing/data/jhmatrix/small_sample.txt"
+    # file = "./a.txt"
     # QUBO.write_file(file, Q[0])
     # # QUBO.read_file(file)
 
@@ -474,7 +475,7 @@ if __name__ == '__main__':
     print("check constrain pass : {}".format(constrain_pass))
     print("mlb throughput : {}".format(throughput))
 
-    da = DA(Q[0], init_bin, 7500)
+    da = DA(Q[0], init_bin, 100000)
     da.run()
     bin = np.expand_dims(da.binary, axis=1)
     # print(bin.T)

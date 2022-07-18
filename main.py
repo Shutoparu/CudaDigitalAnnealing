@@ -44,7 +44,7 @@ class DA:
             exit(-1)
         self.dim = np.shape(self.qubo)[0]
 
-        if(type(binary) == type(None)):
+        if(binary is None):
             self.binary = np.ones(dim).astype(np.int32)
         else:
             self.binary = binary.astype(np.int32)
