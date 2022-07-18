@@ -16,3 +16,6 @@ debug: cudaDigitalAnnealing.cu
 check: cudaDigitalAnnealing.cu
 	nvcc --ptxas-options=-v -arch sm_70 --maxrregcount=255 -o coreDump cudaDigitalAnnealing.cu
 	rm ./coreDump
+
+runData: lib/cudaDA.so
+	python3 toQUBO.py

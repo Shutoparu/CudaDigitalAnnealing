@@ -3,44 +3,91 @@ import numpy.ctypeslib as ctplib
 from ctypes import c_float, c_int, cdll, POINTER
 import time
 
-np.random.seed(1)
 
-dim = 1050
-sweeps = 100000
-qubo = 2 * np.random.rand(dim,dim).astype(np.float32) - 1
-qubo = (qubo + qubo.T) / 2 
-qubo = qubo.flatten()
-binary = np.ones(dim, dtype=np.int32)
+class DA:
 
-# # test code
-# dim = 5
-# sweeps=10000
-# qubo = np.array([[-.1,.2,-.3,.4,-.5],[.2,.3,-.4,.5,.6],[-.3,-.4,-.5,-.6,-.7],[.4,.5,-.6,.7,.8],[-.5,.6,-.7,.8,-.9]]).astype(np.float32)
-# # qubo = qubo.flatten()
-# binary = np.array([-1,-1,1,-1,-1])
-# # test code
+    '''
+    Attributes:
+    qubo : np.ndarray
+        the qubo matrix in 2D
+    binary : np.ndarray
+        the initial spin in 1D
+    maxStep : int
+        the maximum steps for the algorithm
+    dim : int
+        the dimention of the spin array
+    time : float
+        the time spent on the last execution of the algorithm. default value 0 is set
+    '''
 
-binary = ctplib.as_ctypes(binary)
-qubo = ctplib.as_ctypes(qubo)
+    def __init__(
+        self,
+        qubo: np.ndarray = np.array([[0, 1], [1, 0]]),
+        binary: np.ndarray = None,
+        maxStep: int = 10000,
+    ) -> None:
+        '''
+        Parameters:
+        qubo : np.ndarray
+            the qubo matrix in 2D. elements will be parsed to np.float32 which is equivalent to "float" in C. default qubo matrix [[0,1],[1,0]] is used.
+        binary : np.ndarray | None
+            the initial spin in 1D with values between {-1,1}. elements will be parsed to np.float32 which is equivalent to "float" in C. if none then a random initial spin is generated
+        maxStep : int
+            the maximum steps for the algorithm. default value 10,000 is used
+        '''
 
-cudaDA = cdll.LoadLibrary("./lib/cudaDA.so")
+        self.qubo = qubo.astype(np.float32)
+        self.maxStep = maxStep
 
-main = cudaDA.digitalAnnealingPy
+        if np.shape(self.qubo)[0] != np.shape(self.qubo)[1]:
+            print("qubo is not a square matrix")
+            exit(-1)
+        self.dim = np.shape(self.qubo)[0]
 
-main.argtypes = [POINTER(c_int), POINTER(c_float), c_int, c_int]
-main.restype = c_float
+        if(type(binary) == type(None)):
+            self.binary = np.ones(dim).astype(np.int32)
+        else:
+            self.binary = binary.astype(np.int32)
 
-start = time.time()
-energy = main(binary, qubo, dim, sweeps)
-end = time.time()
+        if np.shape(self.qubo)[0] != np.shape(self.binary)[0]:
+            print("qubo dimention and binary dimention mismatch")
+            exit(-1)
+        self.time = 0
+        self.energy = 0
 
-binary = ctplib.as_array(binary)
+    def run(self) -> None:
 
-print(energy)
-print(binary)
-print("spent time: ", end-start)
+        binary = ctplib.as_ctypes(self.binary)
+        qubo = ctplib.as_ctypes(self.qubo.flatten())
 
-# # test code
-# binary = np.expand_dims(binary, axis=1)
-# print( - binary.T @ qubo @ binary)
-# # test code
+        da = cdll.LoadLibrary("./lib/cudaDA.so")
+
+        main = da.digitalAnnealingPy
+
+        main.argtypes = [POINTER(c_int), POINTER(c_float), c_int, c_int]
+        main.restype = c_float
+
+        start = time.time()
+
+        self.energy = main(binary, qubo, self.dim, self.maxStep)
+
+        end = time.time()
+
+        self.time = end-start
+
+        self.binary = ctplib.as_array(binary)
+
+
+if __name__ == '__main__':
+
+    np.random.seed(1)
+    dim = 713
+    maxStep = 7500
+    qubo = 2 * np.random.rand(dim, dim).astype(np.float32) - 1
+    qubo = (qubo + qubo.T) / 2
+    binary = np.ones(dim).astype(np.float32)
+
+    da = DA(qubo, binary, maxStep)
+    da.run()
+    print(da.time)
+    print(da.energy)
