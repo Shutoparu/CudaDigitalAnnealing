@@ -1,3 +1,4 @@
+from operator import rshift
 import numpy as np
 import pickle
 from main import DA
@@ -5,7 +6,7 @@ from main import DA
 
 class QUBO:
     @staticmethod
-    def params2qubo_v2(rsrp, capacity, rb, serving_list, ue_num, bs_num, spin=False):
+    def params2qubo_v2(rsrp, capacity, rb, serving_list, ue_num, bs_num, penalty=10, spin=False):
         def vecmul(vec1, vec2, result=None):
             l1 = len(vec1)
             l2 = len(vec2)
@@ -20,7 +21,7 @@ class QUBO:
         max_rbnum_ue = 200
         x_dim = ue_num * bs_num
 
-        # throughput fo each ue, must under 200, 10*19+(1+2+4+2)
+        # rb fo each ue, must under 200, 10*19+(1+2+4+2)
         digit_num = 4  # 4 for len of [1, 2, 4, 2]
         robinmax = (max_rbnum_ue // 10 - 1)
         robin10_dim = bs_num * robinmax  # t == 19
@@ -51,7 +52,7 @@ class QUBO:
         ##################################################
         cio_range_dim = 6  # 6 for len of [1, 2, 4, 8, 16, 9]
         e_dim = bs_num * bs_num * cio_range_dim
-        v_dim = ue_num * bs_num * power128
+        v_dim = ue_num * bs_num * power256
 
         # init jh matrix
         robin10_shift = x_dim
@@ -74,21 +75,25 @@ class QUBO:
                 if rb_bar > 19:
                     rb_bar = 19
                 for k in range(rb_bar):
-                    h2d[robin10_shift + j * robinmax + k, i * bs_num + j] += -10 * 0.5 * 156 * capacity[
-                        i, j] / 450 / 2
-                    h2d[i * bs_num + j, robin10_shift + j * robinmax + k] += -10 * 0.5 * 156 * capacity[
-                        i, j] / 450 / 2
+                    h2d[robin10_shift + j * robinmax + k, i * bs_num + j] += -10 / 0.0005 * 156 * capacity[
+                        i, j] / (3*ue_num*10**6) / 2
+                    h2d[i * bs_num + j, robin10_shift + j * robinmax + k] += -10 / 0.0005 * 156 * capacity[
+                        i, j] / (3*ue_num*10**6) / 2
                 for k in range(digit_num):
                     if k == digit_num - 1:
                         h2d[robin2_shift + i * (bs_num * digit_num) + j * digit_num + k, i * bs_num + j] += \
-                            -2 * 0.5 * 156 * capacity[i, j] / 450 / 2
+                            -2 / 0.0005 * 156 * \
+                            capacity[i, j] / (3*ue_num*10**6) / 2
                         h2d[i * bs_num + j, robin2_shift + i * (bs_num * digit_num) + j * digit_num + k] += \
-                            -2 * 0.5 * 156 * capacity[i, j] / 450 / 2
+                            -2 / 0.0005 * 156 * \
+                            capacity[i, j] / (3*ue_num*10**6) / 2
                     else:
                         h2d[robin2_shift + i * (bs_num * digit_num) + j * digit_num + k, i * bs_num + j] += \
-                            -2 ** k * 0.5 * 156 * capacity[i, j] / 450 / 2
+                            -(2 ** k) / 0.0005 * 156 * \
+                            capacity[i, j] / (3*ue_num*10**6) / 2
                         h2d[i * bs_num + j, robin2_shift + i * (bs_num * digit_num) + j * digit_num + k] += \
-                            -2 ** k * 0.5 * 156 * capacity[i, j] / 450 / 2
+                            -(2 ** k) / 0.0005 * 156 * \
+                            capacity[i, j] / (3*ue_num*10**6) / 2
 
         # constrain 1
         c12d = np.zeros([h_dim + 1, h_dim + 1])
@@ -227,13 +232,13 @@ class QUBO:
                              (bs_num * cio_range_dim) + j * cio_range_dim + k] -= 2 ** (k - 1)
                 c51d[-1] += 20
 
-                for k in range(power128):
-                    if k == power128 - 1:
-                        c51d[v_shift + i * (bs_num * power128) +
-                             j * power128 + k] -= 185 / 2
+                for k in range(power256):
+                    if k == power256 - 1:
+                        c51d[v_shift + i * (bs_num * power256) +
+                             j * power256 + k] -= 185 / 2
                     else:
-                        c51d[v_shift + i * (bs_num * power128) +
-                             j * power128 + k] -= 2 ** (k - 1)
+                        c51d[v_shift + i * (bs_num * power256) +
+                             j * power256 + k] -= 2 ** (k - 1)
                 c51d[-1] += 110
                 c52d = vecmul(c51d, c51d, c52d)
 
@@ -248,7 +253,8 @@ class QUBO:
                 c62d[robin10_shift + j * robinmax + k,
                      robin10_shift + j * robinmax + k + 1] -= 1 / 2
 
-        result = h2d + c12d + c22d + c32d + c42d + c52d + c62d
+        # result = h2d + penalty*(c12d + c22d + c32d + c42d + c52d + c62d)
+        result = h2d + penalty*(c22d + c62d)
 
         if spin:
             jh = np.zeros([h_dim+1, h_dim+1])
@@ -256,7 +262,7 @@ class QUBO:
                 for j in range(h_dim):
                     c2 = result[i, j]
                     jh[i, j] = c2
-                    jh[i, -1] += -c2/2
+                    jh[i, -1] += -c2 / 2
                     jh[-1, i] += -c2 / 2
                     jh[j, -1] += -c2 / 2
                     jh[-1, j] += -c2 / 2
@@ -410,12 +416,14 @@ class QUBO:
 
     @staticmethod
     def check_constrain(binary, constrains):
+        check = list()
         for c in constrains:
             r = np.matmul(np.matmul(binary.T, c*binary), binary)
             if r != 0:
-                # print(r)
-                return False
-        return True
+                check.append(False)
+            else:
+                check.append(True)
+        return check
 
     @staticmethod
     def check_Q(Q):
@@ -459,7 +467,7 @@ if __name__ == '__main__':
     #### parameters to QUBO matrix ####
     serving_list = QUBO.init_serving_list(capacity, ue_num)
     Q = QUBO.params2qubo_v2(rsrp, capacity, prb,
-                            serving_list, ue_num, bs_num, spin=True)
+                            serving_list, ue_num, bs_num, penalty=100)
 
     # print("Q is symmetry : {}".format(QUBO.check_Q(Q[0])))
 
@@ -470,16 +478,15 @@ if __name__ == '__main__':
     # # QUBO.read_file(file)
 
     init_bin = QUBO.init_bin(capacity, len(Q[0]), bs_num)
+    init_bin[-1] = 1
     throughput = np.matmul(np.matmul(init_bin.T, Q[1]), init_bin)
-    constrain_pass = QUBO.check_constrain(init_bin, Q[2:])
-    print("check constrain pass : {}".format(constrain_pass))
-    print("mlb throughput : {}".format(throughput))
+    print("initial mlb throughput : {}".format(throughput))
 
     da = DA(Q[0], init_bin, 100000)
     da.run()
     bin = np.expand_dims(da.binary, axis=1)
-    # print(bin.T)
-    
+    # print(bin.T[0][108:124])
+
     throughput = np.matmul(np.matmul(bin.T, Q[1]), bin)
     constrain_pass = QUBO.check_constrain(bin, Q[2:])
     print("check constrain pass : {}".format(constrain_pass))
