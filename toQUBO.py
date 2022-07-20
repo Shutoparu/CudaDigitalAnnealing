@@ -254,7 +254,7 @@ class QUBO:
                      robin10_shift + j * robinmax + k + 1] -= 1 / 2
 
         # result = h2d + penalty*(c12d + c22d + c32d + c42d + c52d + c62d)
-        result = h2d + penalty*(c22d + c62d)
+        result = h2d + penalty*(c62d)
 
         if spin:
             jh = np.zeros([h_dim+1, h_dim+1])
@@ -490,5 +490,5 @@ if __name__ == '__main__':
     throughput = np.matmul(np.matmul(bin.T, Q[1]), bin)
     constrain_pass = QUBO.check_constrain(bin, Q[2:])
     print("check constrain pass : {}".format(constrain_pass))
-    print("mlb throughput : {}".format(throughput))
-    print(da.time)
+    print("final mlb throughput : {}".format(throughput))
+    print("time consumed : {}".format(da.time))
