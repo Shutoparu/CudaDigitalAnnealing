@@ -16,4 +16,4 @@ When combine these two constraints and test together, both of them passed the te
 c22d+c62d:\
 ![c22d+c62d](./c22d+c62d.png)
 
-However, all other constraints and combination of constraints failed their respected constraints test
+However, all other constraints and combination of constraints failed their constraints test

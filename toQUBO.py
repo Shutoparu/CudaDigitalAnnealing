@@ -1,4 +1,4 @@
-from operator import rshift
+from curses import panel
 import numpy as np
 import pickle
 from main import DA
@@ -6,7 +6,7 @@ from main import DA
 
 class QUBO:
     @staticmethod
-    def params2qubo_v2(rsrp, capacity, rb, serving_list, ue_num, bs_num, penalty=10, spin=False):
+    def params2qubo_v2(rsrp, capacity, rb, serving_list, ue_num, bs_num, panelty=10, spin=False):
         def vecmul(vec1, vec2, result=None):
             l1 = len(vec1)
             l2 = len(vec2)
@@ -18,12 +18,12 @@ class QUBO:
                 result[i] += vec1[i] * vec2
             return result
 
-        max_rbnum_ue = 200
+        max_rbnum_ue = 199
         x_dim = ue_num * bs_num
 
         # rb fo each ue, must under 200, 10*19+(1+2+4+2)
         digit_num = 4  # 4 for len of [1, 2, 4, 2]
-        robinmax = (max_rbnum_ue // 10 - 1)
+        robinmax = (max_rbnum_ue // 10)
         robin10_dim = bs_num * robinmax  # t == 19
         robin2_dim = ue_num * bs_num * digit_num  # d == 1050*4
 
@@ -76,24 +76,24 @@ class QUBO:
                     rb_bar = 19
                 for k in range(rb_bar):
                     h2d[robin10_shift + j * robinmax + k, i * bs_num + j] += -10 / 0.0005 * 156 * capacity[
-                        i, j] / (3*ue_num*10**6) / 2
+                        i, j] / (3 * ue_num * 10 ** 6) / 2
                     h2d[i * bs_num + j, robin10_shift + j * robinmax + k] += -10 / 0.0005 * 156 * capacity[
-                        i, j] / (3*ue_num*10**6) / 2
+                        i, j] / (3 * ue_num * 10 ** 6) / 2
                 for k in range(digit_num):
                     if k == digit_num - 1:
                         h2d[robin2_shift + i * (bs_num * digit_num) + j * digit_num + k, i * bs_num + j] += \
                             -2 / 0.0005 * 156 * \
-                            capacity[i, j] / (3*ue_num*10**6) / 2
+                            capacity[i, j] / (3 * ue_num * 10 ** 6) / 2
                         h2d[i * bs_num + j, robin2_shift + i * (bs_num * digit_num) + j * digit_num + k] += \
                             -2 / 0.0005 * 156 * \
-                            capacity[i, j] / (3*ue_num*10**6) / 2
+                            capacity[i, j] / (3 * ue_num * 10 ** 6) / 2
                     else:
                         h2d[robin2_shift + i * (bs_num * digit_num) + j * digit_num + k, i * bs_num + j] += \
                             -(2 ** k) / 0.0005 * 156 * \
-                            capacity[i, j] / (3*ue_num*10**6) / 2
+                            capacity[i, j] / (3 * ue_num * 10 ** 6) / 2
                         h2d[i * bs_num + j, robin2_shift + i * (bs_num * digit_num) + j * digit_num + k] += \
                             -(2 ** k) / 0.0005 * 156 * \
-                            capacity[i, j] / (3*ue_num*10**6) / 2
+                            capacity[i, j] / (3 * ue_num * 10 ** 6) / 2
 
         # constrain 1
         c12d = np.zeros([h_dim + 1, h_dim + 1])
@@ -122,7 +122,10 @@ class QUBO:
                 c31d = np.zeros([h_dim + 1])
 
                 # demand rb
-                c31d[-1] = rb[i, j]
+                if rb[i, j] > 199:
+                    c31d[-1] = 199
+                else:
+                    c31d[-1] = rb[i, j]
 
                 # rb distrubution
                 rb_bar = int(rb[i, j] // 10)
@@ -174,6 +177,8 @@ class QUBO:
 
             c42d = vecmul(c41d, c41d, c42d)
 
+        # c72d = np.zeros([h_dim + 1, h_dim + 1])
+        # c82d = np.zeros([h_dim + 1, h_dim + 1])
         p = 1
         for i in range(ue_num):
             for j in range(bs_num):
@@ -196,22 +201,23 @@ class QUBO:
                         robinmax) + k] += p * 3
 
                 for k in range(digit_num):
-                    c42d[robin2_shift + j * robinmax +
-                         k, i * bs_num + j] += p * 1
-                    c42d[i * bs_num + j, robin2_shift +
-                         j * robinmax + k] += p * 1
-                    c42d[robin2_shift + j * robinmax + k, y_shift + i * (bs_num * robinmax) + j * (
-                        robinmax) + k] += p * -2
-                    c42d[y_shift + i * (bs_num * robinmax) + j * (
-                        robinmax) + k, robin2_shift + j * robinmax + k] += p * -2
-                    c42d[i * bs_num + j, y_shift + i * (bs_num * robinmax) + j * (
-                        robinmax) + k] += p * -2
-                    c42d[y_shift + i * (bs_num * robinmax) + j * (
-                        robinmax) + k, i * bs_num + j] += p * -2
-                    c42d[y_shift + i * (bs_num * robinmax) + j * (
-                        robinmax) + k, -1] += p * 3
-                    c42d[-1, y_shift + i * (bs_num * robinmax) + j * (
-                        robinmax) + k] += p * 3
+                    c42d[robin2_shift + i * (bs_num * digit_num) +
+                         j * digit_num + k, i * bs_num + j] += p * 1
+                    c42d[i * bs_num + j, robin2_shift + + i *
+                         (bs_num * digit_num) + j * digit_num + k] += p * 1
+                    c42d[robin2_shift + i * (bs_num * digit_num) + j * digit_num + k, ybar_shift + i * (
+                        bs_num * digit_num) + j * (
+                        digit_num) + k] += p * -2
+                    c42d[ybar_shift + i * (bs_num * digit_num) + j * (
+                        digit_num) + k, robin2_shift + i * (bs_num * digit_num) + j * digit_num + k] += p * -2
+                    c42d[i * bs_num + j, ybar_shift + i * (bs_num * digit_num) + j * (
+                        digit_num) + k] += p * -2
+                    c42d[ybar_shift + i * (bs_num * digit_num) + j * (
+                        digit_num) + k, i * bs_num + j] += p * -2
+                    c42d[ybar_shift + i * (bs_num * digit_num) + j * (
+                        digit_num) + k, -1] += p * 3
+                    c42d[-1, ybar_shift + i * (bs_num * digit_num) + j * (
+                        digit_num) + k] += p * 3
 
         # constrain 5
         c52d = np.zeros([h_dim + 1, h_dim + 1])
@@ -253,11 +259,12 @@ class QUBO:
                 c62d[robin10_shift + j * robinmax + k,
                      robin10_shift + j * robinmax + k + 1] -= 1 / 2
 
-        # result = h2d + penalty*(c12d + c22d + c32d + c42d + c52d + c62d)
-        result = h2d + penalty*(c62d)
+        # result = h2d + panelty * (c12d + c22d + c32d + c42d + c52d + c62d)
+        result = h2d + panelty * \
+            (c12d/128**2 + c22d + c32d/45**2 + c42d/273**2 + c62d)
 
         if spin:
-            jh = np.zeros([h_dim+1, h_dim+1])
+            jh = np.zeros([h_dim + 1, h_dim + 1])
             for i in range(h_dim):
                 for j in range(h_dim):
                     c2 = result[i, j]
@@ -270,7 +277,7 @@ class QUBO:
 
                 jh[i, -1] += result[i, -1]
                 jh[-1, i] += result[-1, i]
-                jh[-1, -1] += -(result[i, -1]+result[-1, i])/2
+                jh[-1, -1] += -(result[i, -1] + result[-1, i]) / 2
             result = jh
 
         return result, h2d, c12d, c22d, c32d, c42d, c52d, c62d
@@ -416,14 +423,12 @@ class QUBO:
 
     @staticmethod
     def check_constrain(binary, constrains):
-        check = list()
+        result = []
         for c in constrains:
-            r = np.matmul(np.matmul(binary.T, c*binary), binary)
-            if r != 0:
-                check.append(False)
-            else:
-                check.append(True)
-        return check
+            r = np.matmul(np.matmul(binary.T, c * binary), binary)
+            result.append(r[0][0])
+
+        return result
 
     @staticmethod
     def check_Q(Q):
@@ -439,7 +444,7 @@ class QUBO:
         init_b = np.zeros([q_size])
         for i in range(len(capacity)):
             index = np.where(capacity[i] == np.max(capacity[i]))[0]
-            init_b[i*bs_num + index] = 1
+            init_b[i * bs_num + index] = 1
         return init_b
 
     @staticmethod
@@ -449,6 +454,230 @@ class QUBO:
             index = np.where(capacity[i] == np.max(capacity[i]))[0]
             serving_list[i] = index
         return serving_list
+
+    @staticmethod
+    def int2bit(n, bit_size):
+        assert n >= 0, "int2bit : int n nust >= 0"
+        assert bit_size >= 1, "int2bit : bit_size nust >= 1"
+        bits = np.zeros([bit_size])
+        idx = 0
+        while (n > 0):
+            r = n % 2
+            if r == 1:
+                bits[idx] = 1
+            n = int(n / 2)
+            idx += 1
+        return bits
+
+    @staticmethod
+    def genAnser(x, ue_num, bs_num, prb):
+
+        for i in range(ue_num):
+            for j in range(bs_num):
+                if prb[i, j] > 199:
+                    prb[i, j] = 199
+
+        max_rbnum_ue = 199
+        x_dim = ue_num * bs_num
+
+        # rb fo each ue, must under 200, 10*19+(1+2+4+2)
+        digit_num = 4  # 4 for len of [1, 2, 4, 2]
+        robinmax = (max_rbnum_ue // 10)
+        robin10_dim = bs_num * robinmax  # t == 19
+        robin2_dim = ue_num * bs_num * digit_num  # d == 1050*4
+
+        # 1. constrain of numbers fo ue conneting to each bs are not greater than 128
+        power128 = 7 + 1  # summation have to > 128
+        r_dim = bs_num * power128
+
+        # 2. constrain 2 has no slack variable
+
+        # 3. constrain of demand-throughput >= 0
+        s_dim = ue_num * bs_num * power128
+
+        # 4. constrain of maximum number of bs is 273
+        power256 = 8 + 1  # summation have to > 273
+        y_dim = ue_num * bs_num * robinmax
+        ybar_dim = ue_num * bs_num * digit_num
+        u_dim = bs_num * power256
+
+        # 5. CIO
+        ##################################################
+        ### index of e is definded j * j'(j' != j) * 6 ###
+        ### 0, [1,2,3,4,5,6], [:]                      ###
+        ### 1, [0,2,3,4,5,6], [:]                      ###
+        ### 2, [0,1,3,4,5,6], [:]                      ###
+        ### ...                                        ###
+        ##################################################
+        cio_range_dim = 6  # 6 for len of [1, 2, 4, 8, 16, 9]
+        e_dim = bs_num * bs_num * cio_range_dim
+        v_dim = ue_num * bs_num * power256
+
+        # init jh matrix
+        robin10_shift = x_dim
+        robin2_shift = robin10_shift + robin10_dim
+        r_shift = robin2_shift + robin2_dim
+        s_shift = r_shift + r_dim
+        y_shift = s_shift + s_dim
+        ybar_shift = y_shift + y_dim
+        u_shift = ybar_shift + ybar_dim
+        e_shift = u_shift + u_dim
+        v_shift = e_shift + e_dim
+        h_dim = v_shift + v_dim
+
+        result = np.zeros(h_dim + 1)
+        rb = np.zeros([ue_num, bs_num])
+        # calculate connet number of each bs
+        connet_counter = np.zeros([bs_num])
+        for i in range(ue_num):
+            connet_counter[x[i]] += 1
+            result[i * bs_num + x[i]] = 1
+            # rb is an array only have value on conneted bs
+            rb[i, x[i]] = prb[i, x[i]]
+
+        # Hamiltonian
+        for j in range(bs_num):
+            bs_assigned_rb = 0
+            if connet_counter[j] > 0:
+
+                #### run robin 10 ####
+                # cumulation
+                cumulate = np.zeros([19])
+                t = np.zeros([19])
+                for i in range(ue_num):
+                    rb_ij = rb[i, j]
+                    quotient = int(rb_ij / 10)
+                    if quotient == 0:
+                        continue
+                    cumulate[:quotient] += 1
+
+                # assign
+                maxrb = 273
+                for k in range(robinmax):
+                    if cumulate[k] != 0:
+                        if maxrb - cumulate[k] * 10 >= 0:
+                            t[k] = 1
+                            maxrb -= cumulate[k] * 10
+                        else:
+                            break
+                    else:
+                        break
+                result[robin10_shift + j * robinmax: robin10_shift +
+                       j * robinmax + robinmax] = t
+
+                #### run robin digit ####
+                digit_trg = rb[:, j] % 10
+                digit_assign = np.zeros(ue_num)
+                while (maxrb > 0):
+                    for i in range(ue_num):
+                        if maxrb == 0:
+                            break
+                        if digit_assign[i] < digit_trg[i]:
+                            digit_assign[i] += 1
+                            maxrb -= 1
+                    if np.array_equal(digit_assign, digit_trg):
+                        break
+
+                for i in range(ue_num):
+                    if digit_assign[i] == 0:  # not connet to this BS
+                        d = np.array([0, 0, 0, 0])
+                        dn = 0
+                    if digit_assign[i] == 1:
+                        d = np.array([1, 0, 0, 0])
+                        dn = 1
+                    elif digit_assign[i] == 2:
+                        d = np.array([0, 1, 0, 0])
+                        dn = 2
+                    elif digit_assign[i] == 3:
+                        d = np.array([1, 1, 0, 0])
+                        dn = 3
+                    elif digit_assign[i] == 4:
+                        d = np.array([0, 0, 1, 0])
+                        dn = 4
+                    elif digit_assign[i] == 5:
+                        d = np.array([1, 0, 1, 0])
+                        dn = 5
+                    elif digit_assign[i] == 6:
+                        d = np.array([0, 1, 1, 0])
+                        dn = 6
+                    elif digit_assign[i] == 7:
+                        d = np.array([1, 1, 1, 0])
+                        dn = 7
+                    elif digit_assign[i] == 8:
+                        d = np.array([0, 1, 1, 1])
+                        dn = 8
+                    elif digit_assign[i] == 9:
+                        d = np.array([1, 1, 1, 1])
+                        dn = 9
+                    result[robin2_shift + i * (bs_num * digit_num) + j * digit_num:robin2_shift + i * (
+                        bs_num * digit_num) + j * digit_num + digit_num] = d
+
+                    #### constrain 3 ####
+                    rb_ij = prb[i, j]
+                    slack = rb_ij - np.sum(t[:int(rb_ij / 10)]) * 10 - dn
+                    if rb[i, j] > 0:  # only conneted ue contribute assigned rb
+                        bs_assigned_rb += np.sum(t[:int(rb_ij / 10)]) * 10 + dn
+                    s_tmp = QUBO.int2bit(slack, bit_size=8)
+                    result[s_shift + i * (bs_num * power128) + j * power128:s_shift + i * (
+                        bs_num * power128) + j * power128 + power128] = s_tmp
+
+                    a = np.sum(t[:int(rb_ij / 10)]) * 10
+                    b = d @ np.array([1, 2, 4, 2])
+                    c = s_tmp @ np.array([1, 2, 4, 8, 16, 32, 64, 128])
+                    test = prb[i, j] - np.sum(t[:int(rb_ij / 10)]) * 10 - d @ np.array([1, 2, 4, 2]) - s_tmp @ np.array(
+                        [1, 2, 4, 8, 16, 32, 64, 128])
+                    assert test == 0
+
+                #### constrain 4 slack ####
+                slack = 273 - bs_assigned_rb
+                u_tmp = QUBO.int2bit(slack, bit_size=9)
+                result[u_shift + j * power256:u_shift +
+                       j * power256 + power256] = u_tmp
+
+                assert bs_assigned_rb + \
+                    u_tmp @ np.array([1, 2, 4, 8, 16, 32, 64,
+                                     128, 256]) - 273 == 0
+
+        #### constrain 4 ####
+        for i in range(ue_num):
+            for j in range(bs_num):
+                for k in range(robinmax):
+                    result[y_shift + i * (bs_num * robinmax) + j * robinmax + k] = result[
+                        robin10_shift + j * robinmax + k] * \
+                        result[i * bs_num + j]
+
+                    test = result[robin10_shift + j * robinmax + k] * result[i * bs_num + j] - 2 * result[
+                        robin10_shift + j * robinmax + k] * result[y_shift + i * (bs_num * robinmax) + j * (
+                            robinmax) + k] - 2 * result[i * bs_num + j] * result[y_shift + i * (bs_num * robinmax) + j * (
+                                robinmax) + k] + 3 * result[y_shift + i * (bs_num * robinmax) + j * (
+                                    robinmax) + k]
+                    assert test == 0
+
+                for k in range(digit_num):
+                    result[ybar_shift + i * (bs_num * digit_num) + j * digit_num + k] = result[
+                        robin2_shift + i * (
+                            bs_num * digit_num) + j * digit_num + k] * \
+                        result[i * bs_num + j]
+
+                    test = result[robin2_shift + i * (bs_num * digit_num) + j * digit_num + k] * result[
+                        i * bs_num + j] - 2 * result[
+                        robin2_shift + i * (bs_num * digit_num) + j * digit_num + k] * result[
+                        ybar_shift + i * (bs_num * digit_num) + j * (
+                            digit_num) + k] - 2 * result[i * bs_num + j] * result[
+                        ybar_shift + i * (bs_num * digit_num) + j * (
+                            digit_num) + k] + 3 * result[ybar_shift + i * (bs_num * digit_num) + j * (
+                                digit_num) + k]
+                    assert test == 0
+
+        #### constrain 1 ####
+        for j in range(bs_num):
+            slack = 128 - connet_counter[j]
+            r_tmp = QUBO.int2bit(slack, bit_size=8)
+            result[r_shift + j * power128:r_shift +
+                   j * power128 + power128] = r_tmp
+
+        result[-1] = 1
+        return result
 
 
 if __name__ == '__main__':
@@ -467,7 +696,7 @@ if __name__ == '__main__':
     #### parameters to QUBO matrix ####
     serving_list = QUBO.init_serving_list(capacity, ue_num)
     Q = QUBO.params2qubo_v2(rsrp, capacity, prb,
-                            serving_list, ue_num, bs_num, penalty=100)
+                            serving_list, ue_num, bs_num, panelty=100)
 
     # print("Q is symmetry : {}".format(QUBO.check_Q(Q[0])))
 
@@ -482,13 +711,22 @@ if __name__ == '__main__':
     throughput = np.matmul(np.matmul(init_bin.T, Q[1]), init_bin)
     print("initial mlb throughput : {}".format(throughput))
 
-    da = DA(Q[0], init_bin, 100000)
+    da = DA(Q[0], init_bin, maxStep=100000)
     da.run()
     bin = np.expand_dims(da.binary, axis=1)
-    # print(bin.T[0][108:124])
 
     throughput = np.matmul(np.matmul(bin.T, Q[1]), bin)
     constrain_pass = QUBO.check_constrain(bin, Q[2:])
     print("check constrain pass : {}".format(constrain_pass))
     print("final mlb throughput : {}".format(throughput))
     print("time consumed : {}".format(da.time))
+
+    test = np.expand_dims(np.array(QUBO.genAnser(
+        [0, 0, 0, 0, 0, 1, 1], ue_num, bs_num, prb)), axis=1)
+    const = QUBO.check_constrain(test, Q[2:])
+    print(const)
+
+    # print(sum(abs(bin.T[0]-init_bin)))
+    # print(sum(abs(init_bin-test.T[0])))
+    # print(sum(abs(test.T[0]-bin.T[0])))
+    print(bin.T[0])

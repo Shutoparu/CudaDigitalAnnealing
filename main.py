@@ -45,7 +45,9 @@ class DA:
         self.dim = np.shape(self.qubo)[0]
 
         if(binary is None):
-            self.binary = np.ones(dim).astype(np.int32)
+            self.binary = np.zeros(self.dim)
+            self.binary[-1] = 1
+            self.binary = self.binary.astype(np.int32)
         else:
             self.binary = binary.astype(np.int32)
 
@@ -69,7 +71,7 @@ class DA:
 
         start = time.time()
 
-        self.energy = main(binary, qubo, self.dim, self.maxStep)
+        main(binary, qubo, self.dim, self.maxStep)
 
         end = time.time()
 

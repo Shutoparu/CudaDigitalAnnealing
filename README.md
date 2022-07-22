@@ -18,13 +18,16 @@ Used image version: nvidia/cuda:10.0-devel-ubuntu18.04
 
 command to create container: 
 
-> docker run -it --gpus all nvidia/cuda:10.0-devel-ubuntu18.04 bash
+```
+docker run -it --gpus all nvidia/cuda:10.0-devel-ubuntu18.04 bash
+```
 
 To compile and run the Cuda C code, run in terminal:
 
-> nvcc cudaDigitalAnnealing.cu -o ./bin/cudaDA.o
-> 
-> ./bin/cudaDA.o
+```
+nvcc cudaDigitalAnnealing.cu -o ./bin/cudaDA.o
+./bin/cudaDA.o
+```
 
 ### result: 
 the algorithm spent 59 seconds to finish 100,000 iterations,
