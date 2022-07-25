@@ -1,4 +1,3 @@
-from curses import panel
 import numpy as np
 import pickle
 from main import DA
@@ -177,8 +176,6 @@ class QUBO:
 
             c42d = vecmul(c41d, c41d, c42d)
 
-        # c72d = np.zeros([h_dim + 1, h_dim + 1])
-        # c82d = np.zeros([h_dim + 1, h_dim + 1])
         p = 1
         for i in range(ue_num):
             for j in range(bs_num):
@@ -261,7 +258,7 @@ class QUBO:
 
         # result = h2d + panelty * (c12d + c22d + c32d + c42d + c52d + c62d)
         result = h2d + panelty * \
-            (c12d/128**2 + c22d + c32d/45**2 + c42d/273**2 + c62d)
+            (c12d/128 + c22d + c32d/45 + c42d/273 + c52d/110 + c62d)
 
         if spin:
             jh = np.zeros([h_dim + 1, h_dim + 1])
@@ -470,8 +467,30 @@ class QUBO:
         return bits
 
     @staticmethod
-    def genAnser(x, ue_num, bs_num, prb):
+    def init_cio(bs_num, cio_value=None):
+        # cio_value is in range [-10, 10]
+        if cio_value is None:
+            cio_value = np.zeros((bs_num, bs_num))
+        assert cio_value.shape == (bs_num, bs_num), \
+            "cio_value must have same shape with ({},{}), but given {}".format(
+                bs_num, bs_num, cio_value.shape)
 
+        cio = np.zeros((bs_num, bs_num, 6))  # 6 for len of [1, 2, 4, 8, 16, 9]
+        for i in range(bs_num):
+            for j in range(bs_num):
+                cio_trans = (cio_value[i, j] - 10) * -2
+                if cio_trans > 31:
+                    cio[i, j, -1] = 1
+                    cio_trans -= 9
+                bits = QUBO.int2bit(cio_trans, 6)
+                cio[i, j] += bits
+
+        return cio
+
+    @staticmethod
+    def gen_answer(serving_list, ue_num, bs_num, prb, rsrp, cio_seting, x=None):
+
+        serving_list = serving_list.astype(int)
         for i in range(ue_num):
             for j in range(bs_num):
                 if prb[i, j] > 199:
@@ -525,6 +544,21 @@ class QUBO:
         v_shift = e_shift + e_dim
         h_dim = v_shift + v_dim
 
+        cio_list = np.array([1, 2, 4, 8, 16, 9])
+        if x is None:
+            x = np.zeros(ue_num)
+            for i in range(ue_num):
+                maxdelta = 0
+                idx = serving_list[i]
+                for j in range(bs_num):
+                    delta = rsrp[i, j] - rsrp[i, serving_list[i]]
+                    t = ((cio_seting[j, serving_list[i]] @ cio_list) / 2 - 10)
+                    if delta - ((cio_seting[j, serving_list[i]] @ cio_list) / 2 - 10) > maxdelta:
+                        maxdelta = delta
+                        idx = j
+                x[i] = idx
+        x = x.astype(int)
+
         result = np.zeros(h_dim + 1)
         rb = np.zeros([ue_num, bs_num])
         # calculate connet number of each bs
@@ -534,6 +568,26 @@ class QUBO:
             result[i * bs_num + x[i]] = 1
             # rb is an array only have value on conneted bs
             rb[i, x[i]] = prb[i, x[i]]
+
+        # constrain 5
+        cio_list_len = len(cio_list)
+        for i in range(ue_num):
+            for j in range(bs_num):
+                serving_n = serving_list[i]
+                if serving_n == j:
+                    continue
+                e = cio_setting[serving_n, j]
+                result[e_shift + serving_n * (bs_num * cio_list_len) + j * cio_list_len:e_shift + serving_n * (
+                    bs_num * cio_list_len) + j * cio_list_len + cio_list_len] = e
+                slack = (result[i * bs_num + j] * (
+                    rsrp[i, j] - rsrp[i, serving_n] - 10) - e @ cio_list / 2 + 20 + 110) * 2
+                if slack > 255:
+                    slack -= 185
+                    result[v_shift + i *
+                           (bs_num * power256) + j * power256 + power256] = 1
+                bits = QUBO.int2bit(slack, 8)
+                result[v_shift + i * (bs_num * power256) + j * power256:v_shift + i * (
+                    bs_num * power256) + j * power256 + power256 - 1] = bits
 
         # Hamiltonian
         for j in range(bs_num):
@@ -703,30 +757,53 @@ if __name__ == '__main__':
     # #### write qubo matrix as txt ####
     # file = "/Users/musktang/pycharm_project/mobile-load-balancing/data/jhmatrix/small_sample.txt"
     # file = "./a.txt"
-    # QUBO.write_file(file, Q[0])
+    # np.savetxt(file,Q[0])
+    # # QUBO.write_file(file, Q[0])
     # # QUBO.read_file(file)
+    # quit()
 
     init_bin = QUBO.init_bin(capacity, len(Q[0]), bs_num)
     init_bin[-1] = 1
     throughput = np.matmul(np.matmul(init_bin.T, Q[1]), init_bin)
     print("initial mlb throughput : {}".format(throughput))
 
-    da = DA(Q[0], init_bin, maxStep=100000)
-    da.run()
-    bin = np.expand_dims(da.binary, axis=1)
+    da1 = DA(Q[0], init_bin, maxStep=100000)
+    da1.run()
+    bin1 = np.expand_dims(da1.binary, axis=1)
 
-    throughput = np.matmul(np.matmul(bin.T, Q[1]), bin)
-    constrain_pass = QUBO.check_constrain(bin, Q[2:])
+    # quit()
+
+    throughput = np.matmul(np.matmul(bin1.T, Q[1]), bin1)[0][0]
+    constrain_pass = QUBO.check_constrain(bin1, Q[2:])
     print("check constrain pass : {}".format(constrain_pass))
     print("final mlb throughput : {}".format(throughput))
-    print("time consumed : {}".format(da.time))
 
-    test = np.expand_dims(np.array(QUBO.genAnser(
-        [0, 0, 0, 0, 0, 1, 1], ue_num, bs_num, prb)), axis=1)
+    # da2 = DA(Q[0], init_bin, maxStep=20000)
+    # da2.run()
+    # bin2 = np.expand_dims(da2.binary, axis=1)
+
+    # throughput = np.matmul(np.matmul(bin2.T, Q[1]), bin2)
+    # constrain_pass = QUBO.check_constrain(bin2, Q[2:])
+    # print("check constrain pass : {}".format(constrain_pass))
+    # print("final mlb throughput : {}".format(throughput))
+
+    cio_setting = QUBO.init_cio(bs_num)
+    ans_bin = QUBO.gen_answer(serving_list, ue_num,
+                              bs_num, prb, rsrp, cio_setting)
+
+    test = np.expand_dims(ans_bin, axis=1)
     const = QUBO.check_constrain(test, Q[2:])
-    print(const)
+    throughput_ideal = np.matmul(np.matmul(test.T, Q[1]), test)[0][0]
+    print("check constrain pass ideal: {}".format(const))
+    print("final mlb throughput ideal: {}".format(throughput_ideal))
 
     # print(sum(abs(bin.T[0]-init_bin)))
     # print(sum(abs(init_bin-test.T[0])))
     # print(sum(abs(test.T[0]-bin.T[0])))
-    print(bin.T[0])
+    # print(test.T[0])
+    # print(Q[0])
+    # print(bin1.T[0])
+    # print(bin2.T[0])
+    # print((bin2+bin1).T[0])
+    print(sum(abs(bin1.T[0]-test.T[0])))
+    print(da1.time)

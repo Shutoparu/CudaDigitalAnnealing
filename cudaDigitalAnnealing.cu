@@ -76,17 +76,6 @@ float max (float* arr, int size) {
     return max;
 }
 
-float minNonZero (float* arr, int size) {
-    float minNonZero = arr[0];
-    for (int i = 1; i < size; i++) {
-        if (abs (minNonZero) <= 0.00005 || minNonZero > arr[i] && abs (arr[i] <= 0.0005)) {
-            minNonZero = arr[i];
-        }
-    }
-    return minNonZero;
-}
-
-
 /**
  * @brief calculate the energy with given qubo matrix and binary state
  *
@@ -159,9 +148,9 @@ __global__ void slipBinary (int dim, float offset, float beta, float* stat, floa
         }
 
         if (flipped != 0) {
-            delta_E = 2 * delta_E - offset;
+            delta_E = 2 * delta_E - tex1Dfetch (Q_text, i * dim + i) - offset;
         } else {
-            delta_E = -2 * delta_E - offset;
+            delta_E = -2 * delta_E + tex1Dfetch (Q_text, i * dim + i) - offset;
         }
 
         // check energy or check % (check pass)
@@ -169,9 +158,12 @@ __global__ void slipBinary (int dim, float offset, float beta, float* stat, floa
         if (abs (delta_E) <= 0.0000005) {
             // stat[i] = curand_uniform (&state) > 0.4 ? 1 : 0;
             stat[i] = 0;
-        } else if (delta_E < 0) {
+        } else if (p > curand_uniform (&state)) {
             stat[i] = 1;
-            // } else if (p > curand_uniform (&state)) {
+            // } else if (abs (delta_E) <= 0.0000005) {
+            //     // stat[i] = curand_uniform (&state) > 0.4 ? 1 : 0;
+            //     stat[i] = 0;
+            // } else if (delta_E < 0) {
             //     stat[i] = 1;
         } else {
             stat[i] = 0;
@@ -188,10 +180,10 @@ __global__ void slipBinary (int dim, float offset, float beta, float* stat, floa
  * @param beta the beta array to be returned
  * @param sweeps the length of beta array
  */
-void getAnnealingBeta (int betaStart, int betaStop, float* beta, int sweeps) {
+void getAnnealingBeta (float betaStart, float betaStop, float* beta, int sweeps) {
 
-    float logBetaStart = log ((float)betaStart);
-    float logBetaStop = log ((float)betaStop);
+    float logBetaStart = log (betaStart);
+    float logBetaStop = log (betaStop);
     float logBetaRange = (logBetaStop - logBetaStart) / (float)sweeps;
     for (int i = 0; i < sweeps; i++) {
         beta[i] = exp (logBetaStart + logBetaRange * i);
@@ -288,7 +280,7 @@ void getAnnealingBeta (int betaStart, int betaStop, float* beta, int sweeps) {
 // }
 
 /////////////////////////////////////////////////////////////////////////
-/// Below is the code that Python code calls to execute the algorithm ///
+/// Below is the code that Pythonf code calls to execute the algorithm ///
 /////////////////////////////////////////////////////////////////////////
 
 extern "C" {
@@ -313,8 +305,8 @@ float digitalAnnealingPy (int* b, float* Q, int dim, int sweeps) {
     int blocks = 32 * 16;
     int threads = dim / blocks + 1;
 
-    int betaStart = 1;
-    int betaStop = 50;
+    float betaStart = 1;
+    float betaStop = 500;
 
     float* beta;
     beta = (float*)malloc (sweeps * sizeof (float));
@@ -355,24 +347,26 @@ float digitalAnnealingPy (int* b, float* Q, int dim, int sweeps) {
         cudaDeviceSynchronize ();
         cudaMemcpy (stat_host, stat, 2 * dim * sizeof (float), cudaMemcpyDeviceToHost);
 
+
+
+        // printf ("n=%d\n===\n", n);
+        // for (int i = 0; i < dim; i++) {
+        //     printf ("%d -> %.0f,\t", i, stat_host[dim + i]);
+        //     if (i % 7 == 6) { printf ("\n"); }
+        // }
+        // printf ("\n===\n");
         // stat[0] = accept, stat[1] = delta_E
         if (sum (stat_host, dim) <= 0.001) {
             offset += offsetIncreasingRate * max (&stat_host[dim], dim);
-            // offset += offsetIncreasingRate * minNonZero (&stat_host[dim], dim);
-            // printf ("\n");
-            // for (int i = 0; i < dim; i++) {
-            //     printf ("%d -> %.5f\n", i, stat_host[dim + i]);
-            // }
-            // printf ("\n");
-            printf ("n = %d -> offset added = %.9f\n", n, offset);
+            // printf ("n = %d -> offset added = %.9f, sum = %f\n", n, offset, sum (stat_host, dim));
         } else {
             int index = randChoose (stat_host, dim);
             b[index] = b[index] * -1 + 1;
             offset = 0;
             cudaMemcpy (b_copy, b, dim * sizeof (int), cudaMemcpyHostToDevice);
-            printf ("n = %d -> accepted index = %d, delta_E = %.9f\n", n, index, stat_host[dim + index]);
+            // printf ("n = %d -> accepted index = %d, delta_E = %.9f\n", n, index, stat_host[dim + index]);
         }
-        if (n % 5000 == 0) {
+        if (n % 100 == 0) {
             float energy = 0;
             dot1 << <blocks, threads >> > (tempArr, dim);
             cudaDeviceSynchronize ();
