@@ -87,7 +87,6 @@ class DA:
             self.blocks = 32*16
             self.threads = self.dim//self.blocks + 1
 
-        
     def run(self) -> None:
 
         binary = ctplib.as_ctypes(self.binary)
@@ -99,11 +98,11 @@ class DA:
 
         main.argtypes = [POINTER(c_int), POINTER(
             c_float), c_int, c_int, c_float, c_float, c_int, c_int]
-        main.restype = c_float
 
         start = time.time()
 
-        main(binary, qubo, self.dim, self.maxStep, self.betaStart, self.betaStop, self.blocks, self.threads)
+        main(binary, qubo, self.dim, self.maxStep, self.betaStart,
+             self.betaStop, self.blocks, self.threads)
 
         end = time.time()
 
