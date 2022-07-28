@@ -288,9 +288,10 @@ class QUBO:
                      robin10_shift + j * robinmax + k + 1] -= 1 / 2
 
         # result = h2d + panelty * (c12d + c22d + c32d + c42d + c452d + c52d + c62d)
-        result = h2d + panelty * \
-            (c12d/128**2 + 2*c22d + c32d/45**2 +
-             c42d / 273**2 + 2*c452d/273**2 + c52d/110**2 + 2*c62d)
+        # result = h2d + panelty * \
+        #     (c12d/128**2 + 2*c22d + c32d/45**2 +
+        #      c42d / 273**2 + 2*c452d/273**2 + c52d/110**2 + 2*c62d)
+        result = (c22d + c62d) * 128**2 + c12d
 
         if spin:
             jh = np.zeros([h_dim + 1, h_dim + 1])
@@ -803,7 +804,7 @@ if __name__ == '__main__':
     init_bin = QUBO.init_bin(capacity, len(Q[0]), bs_num)
     init_bin[-1] = 1
 
-    da1 = DA(Q[0], init_bin, maxStep=100000,
+    da1 = DA(Q[0], init_bin, maxStep=1000000,
              betaStart=0.01, betaStop=100, kernel_dim=(32*2,))
     da1.run()
     # print(da1.binary)

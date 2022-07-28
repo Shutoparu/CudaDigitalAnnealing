@@ -110,6 +110,10 @@ class DA:
 
         self.binary = ctplib.as_array(binary)
 
+        bin = np.expand_dims(self.binary, axis=1)
+
+        self.energy = (bin.T @ self.qubo @ bin)[0][0]
+
 
 if __name__ == '__main__':
 

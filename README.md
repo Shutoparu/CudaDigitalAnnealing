@@ -12,6 +12,8 @@ kernel: Linux 5.13.0-51-generic
 
 Used image version: nvidia/cuda:10.0-devel-ubuntu18.04
 
+Used image card: NVIDIA GeForce 3090 
+
 command used to create container: 
 ```
 docker run -it --gpus all nvidia/cuda:10.0-devel-ubuntu18.04 bash

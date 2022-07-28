@@ -172,13 +172,6 @@ void getAnnealingBeta (float betaStart, float betaStop, float* beta, int sweeps)
     }
 }
 
-__global__ void flip (int* b, int index) {
-    int i = threadIdx.x + blockIdx.x * blockDim.x;
-    if (i == index) {
-        b[index] = b[index] * -1 + 1;
-    }
-}
-
 //////////////////////////////////////////////////////////////////////////
 /// Below is the code that Pythonf code calls to execute the algorithm ///
 //////////////////////////////////////////////////////////////////////////
@@ -250,8 +243,6 @@ void digitalAnnealingPy (int* b, float* Q, int dim, int sweeps, float betaStart,
         if (index == -1) {
             offset += offsetIncreasingRate * max (&stat_host[dim], dim);
         } else {
-            // flip << <blocks, threads >> > (b_copy, index);
-            // cudaDeviceSynchronize ();
             b[index] = b[index] * -1 + 1;
             cudaMemcpy (b_copy, b, dim * sizeof (int), cudaMemcpyHostToDevice);
             offset = 0;
