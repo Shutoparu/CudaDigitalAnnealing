@@ -118,13 +118,14 @@ class DA:
 if __name__ == '__main__':
 
     np.random.seed(1)
-    dim = 713
-    maxStep = 7500
+    dim = 1
+    maxStep = 100
     qubo = 2 * np.random.rand(dim, dim).astype(np.float32) - 1
     qubo = (qubo + qubo.T) / 2
     binary = np.ones(dim).astype(np.float32)
 
-    da = DA(qubo, binary, maxStep)
+    da = DA(qubo, maxStep=maxStep)
     da.run()
     print(da.time)
+    # print(da.binary)
     print(da.energy)

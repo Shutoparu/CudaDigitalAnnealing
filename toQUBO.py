@@ -804,7 +804,7 @@ if __name__ == '__main__':
     init_bin = QUBO.init_bin(capacity, len(Q[0]), bs_num)
     init_bin[-1] = 1
 
-    da1 = DA(Q[0], init_bin, maxStep=1000000,
+    da1 = DA(Q[0], init_bin, maxStep=100000,
              betaStart=0.01, betaStop=100, kernel_dim=(32*2,))
     da1.run()
     # print(da1.binary)
